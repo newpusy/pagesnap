@@ -1,24 +1,33 @@
 {
-  "snapshotDir": "snapshots",
-  "schedule": "0 * * * *",
+  "schedule": "0 */6 * * *",
+  "outputDir": "./snapshots",
+  "reportFile": "./report.jsonl",
+  "auditLog": "./audit.jsonl",
+  "alertLog": "./alerts.jsonl",
   "retention": {
     "maxAgeDays": 30,
-    "maxCount": 100
+    "maxSnapshotsPerSlug": 50
   },
-  "alertThreshold": 0.05,
-  "webhookEnabled": true,
-  "webhookUrl": "https://hooks.example.com/pagesnap",
-  "webhookSecret": "change-me",
-  "webhookRetries": 2,
+  "alert": {
+    "threshold": 0.05,
+    "notify": true
+  },
+  "webhook": {
+    "url": "https://hooks.example.com/pagesnap",
+    "secret": "mysecret"
+  },
+  "plugins": [
+    "./plugins/my-plugin.js"
+  ],
   "pages": [
     {
       "url": "https://example.com",
-      "schedule": "*/30 * * * *",
-      "webhookUrl": "https://hooks.example.com/example-com"
+      "schedule": "0 * * * *",
+      "viewport": { "width": 1280, "height": 800 }
     },
     {
       "url": "https://example.com/about",
-      "webhookEnabled": false
+      "viewport": { "width": 1280, "height": 800 }
     }
   ]
 }
