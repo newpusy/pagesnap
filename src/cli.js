@@ -34,7 +34,12 @@ async function main() {
       : config.pages;
 
     if (pages.length === 0) {
-      console.error(`[pagesnap] No matching page for: ${targetUrl}`);
+      if (targetUrl) {
+        console.error(`[pagesnap] No matching page for: ${targetUrl}`);
+        console.error('[pagesnap] Check that the URL exactly matches one defined in your config.');
+      } else {
+        console.error('[pagesnap] No pages defined in config.');
+      }
       process.exit(1);
     }
 
