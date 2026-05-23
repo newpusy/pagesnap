@@ -42,3 +42,11 @@ node src/alertcli.js list --triggered
 node src/alertcli.js list --url https://example.com
 node src/alertcli.js summary
 ```
+
+Clear the alert log with:
+
+```bash
+node src/alertcli.js clear
+```
+
+> **Note:** `clear` permanently deletes all entries in `alerts.ndjson`. Consider backing up the file first if you need to retain historical data.
