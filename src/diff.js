@@ -6,7 +6,7 @@ import pixelmatch from 'pixelmatch';
 /**
  * Compute a simple hash of a file's contents for quick change detection.
  * @param {string} filePath
- * @returns {string} hex digest
+ * @returns {string|null} hex digest, or null if the file doesn't exist
  */
 export function hashFile(filePath) {
   if (!existsSync(filePath)) return null;
@@ -18,9 +18,10 @@ export function hashFile(filePath) {
  * Compare two PNG screenshot files pixel-by-pixel.
  * @param {string} baselinePath - path to the reference screenshot
  * @param {string} currentPath  - path to the new screenshot
- * @returns {{ diffPixels: number, totalPixels: number, diffRatio: number }}
+ * @param {number} [threshold=0.1] - pixelmatch per-pixel sensitivity (0–1)
+ * @returns {{ diffPixels: number, totalPixels: number, diffRatio: number, dimensionMismatch: boolean }}
  */
-export function diffScreenshots(baselinePath, currentPath) {
+export function diffScreenshots(baselinePath, currentPath, threshold = 0.1) {
   if (!existsSync(baselinePath)) {
     throw new Error(`Baseline not found: ${baselinePath}`);
   }
@@ -50,7 +51,7 @@ export function diffScreenshots(baselinePath, currentPath) {
     diffOutput,
     width,
     height,
-    { threshold: 0.1 }
+    { threshold }
   );
 
   return {
@@ -70,4 +71,19 @@ export function diffScreenshots(baselinePath, currentPath) {
 export function hasVisualChange(result, threshold = 0.01) {
   if (result.dimensionMismatch) return true;
   return result.diffRatio > threshold;
+}
+
+/**
+ * Quick check using file hashes before doing a full pixel diff.
+ * Returns false immediately if the files are byte-for-byte identical,
+ * saving the cost of decoding and comparing PNG data.
+ * @param {string} baselinePath
+ * @param {string} currentPath
+ * @returns {boolean} true if the files differ (or baseline is missing), false if identical
+ */
+export function filesAreDifferent(baselinePath, currentPath) {
+  const baselineHash = hashFile(baselinePath);
+  const currentHash = hashFile(currentPath);
+  if (baselineHash === null || currentHash === null) return true;
+  return baselineHash !== currentHash;
 }
