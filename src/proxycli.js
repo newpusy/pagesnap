@@ -1,58 +1,88 @@
-// proxycli.js — CLI to test and inspect proxy configuration
+/**
+ * proxycli.js — CLI interface for managing proxy configuration in pagesnap
+ */
 
-const { loadConfig } = require('./config');
-const { mergeProxyConfig, buildProxyArgs, isProxyEnabled } = require('./proxy');
+const VALID_COMMANDS = ['show', 'set', 'clear'];
 
-function parseCliArgs(argv = process.argv.slice(2)) {
-  const args = { page: null, command: 'show' };
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--page' && argv[i + 1]) {
-      args.page = argv[++i];
-    } else if (['show', 'test'].includes(argv[i])) {
-      args.command = argv[i];
+/**
+ * Parse CLI arguments for the proxy subcommand.
+ * @param {string[]} argv - process.argv slice after 'proxy'
+ * @returns {object} parsed result
+ */
+export function parseCliArgs(argv = []) {
+  const [command = 'show', ...rest] = argv;
+
+  if (!VALID_COMMANDS.includes(command)) {
+    return { error: `Unknown command: "${command}". Valid commands: ${VALID_COMMANDS.join(', ')}` };
+  }
+
+  if (command === 'show' || command === 'clear') {
+    return { command };
+  }
+
+  // command === 'set'
+  const result = { command };
+  for (let i = 0; i < rest.length; i++) {
+    const flag = rest[i];
+    const value = rest[i + 1];
+    if (flag === '--server') { result.server = value; i++; }
+    else if (flag === '--port') { result.port = parseInt(value, 10); i++; }
+    else if (flag === '--username') { result.username = value; i++; }
+    else if (flag === '--password') { result.password = value; i++; }
+    else if (flag === '--bypass') {
+      result.bypass = value ? value.split(',').map(s => s.trim()) : [];
+      i++;
     }
   }
-  return args;
+
+  return result;
 }
 
-async function runProxyCli(argv, configPath = 'pagesnap.config.json', out = console.log) {
-  const args = parseCliArgs(argv);
-  const config = await loadConfig(configPath);
+/**
+ * Run the proxy CLI command against a config file.
+ * @param {string[]} argv
+ * @param {string} configPath
+ * @param {object} io - { readConfig, writeConfig, log }
+ */
+export async function runProxyCli(argv, configPath, io = {}) {
+  const { readConfig, writeConfig, log = console.log } = io;
+  const parsed = parseCliArgs(argv);
 
-  let pageConfig = {};
-  if (args.page) {
-    const pages = config.pages || [];
-    const found = pages.find(p => p.url === args.page || p.slug === args.page);
-    if (!found) {
-      out(`Page not found: ${args.page}`);
-      return;
-    }
-    pageConfig = found;
+  if (parsed.error) {
+    log(`Error: ${parsed.error}`);
+    return;
   }
 
-  const proxyConfig = mergeProxyConfig(config, pageConfig);
+  const config = await readConfig(configPath);
 
-  if (args.command === 'show') {
-    out('Proxy configuration:');
-    out(`  enabled:            ${proxyConfig.enabled}`);
-    out(`  url:                ${proxyConfig.url || '(none)'}`);
-    out(`  bypass:             ${proxyConfig.bypass.length ? proxyConfig.bypass.join(', ') : '(none)'}`);
-    out(`  rejectUnauthorized: ${proxyConfig.rejectUnauthorized}`);
-    if (isProxyEnabled(proxyConfig)) {
-      const launchArgs = buildProxyArgs(proxyConfig);
-      out(`  chromium args:      ${launchArgs.join(' ')}`);
+  if (parsed.command === 'show') {
+    const proxy = config.proxy || {};
+    if (!proxy.server) {
+      log('No proxy configured.');
+    } else {
+      log(`Server:   ${proxy.server}`);
+      if (proxy.port) log(`Port:     ${proxy.port}`);
+      if (proxy.username) log(`Username: ${proxy.username}`);
+      if (proxy.bypass) log(`Bypass:   ${proxy.bypass.join(', ')}`);
     }
     return;
   }
 
-  if (args.command === 'test') {
-    if (!isProxyEnabled(proxyConfig)) {
-      out('Proxy is not enabled.');
-      return;
-    }
-    out(`Testing proxy: ${proxyConfig.url}`);
-    out('Proxy config looks valid. Run a capture to verify connectivity.');
+  if (parsed.command === 'clear') {
+    delete config.proxy;
+    await writeConfig(configPath, config);
+    log('Proxy configuration cleared.');
+    return;
+  }
+
+  if (parsed.command === 'set') {
+    config.proxy = config.proxy || {};
+    if (parsed.server !== undefined) config.proxy.server = parsed.server;
+    if (parsed.port !== undefined) config.proxy.port = parsed.port;
+    if (parsed.username !== undefined) config.proxy.username = parsed.username;
+    if (parsed.password !== undefined) config.proxy.password = parsed.password;
+    if (parsed.bypass !== undefined) config.proxy.bypass = parsed.bypass;
+    await writeConfig(configPath, config);
+    log('Proxy configuration updated.');
   }
 }
-
-module.exports = { parseCliArgs, runProxyCli };
