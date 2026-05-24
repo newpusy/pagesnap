@@ -16,6 +16,19 @@ function makeTempReport(entries = SAMPLE_ENTRIES) {
   return file;
 }
 
+/**
+ * Helper to clean up temp files after a test, even if the test throws.
+ */
+function withTempFiles(files, fn) {
+  try {
+    fn();
+  } finally {
+    for (const f of files) {
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+  }
+}
+
 test('parseCliArgs defaults', () => {
   const args = parseCliArgs([]);
   expect(args.format).toBe('json');
@@ -51,30 +64,30 @@ test('entriesToCsv wraps values with commas in quotes', () => {
 test('runExportCli writes json to output file', () => {
   const reportFile = makeTempReport();
   const outFile = path.join(os.tmpdir(), `export-${Date.now()}.json`);
-  runExportCli(['--format', 'json', '--output', outFile], reportFile);
-  const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
-  expect(data.length).toBe(2);
-  fs.unlinkSync(reportFile);
-  fs.unlinkSync(outFile);
+  withTempFiles([reportFile, outFile], () => {
+    runExportCli(['--format', 'json', '--output', outFile], reportFile);
+    const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    expect(data.length).toBe(2);
+  });
 });
 
 test('runExportCli filters by url', () => {
   const reportFile = makeTempReport();
   const outFile = path.join(os.tmpdir(), `export-${Date.now()}.json`);
-  runExportCli(['--format', 'json', '--output', outFile, '--url', 'https://example.com'], reportFile);
-  const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
-  expect(data.length).toBe(1);
-  expect(data[0].url).toBe('https://example.com');
-  fs.unlinkSync(reportFile);
-  fs.unlinkSync(outFile);
+  withTempFiles([reportFile, outFile], () => {
+    runExportCli(['--format', 'json', '--output', outFile, '--url', 'https://example.com'], reportFile);
+    const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    expect(data.length).toBe(1);
+    expect(data[0].url).toBe('https://example.com');
+  });
 });
 
 test('runExportCli writes csv to output file', () => {
   const reportFile = makeTempReport();
   const outFile = path.join(os.tmpdir(), `export-${Date.now()}.csv`);
-  runExportCli(['--format', 'csv', '--output', outFile], reportFile);
-  const content = fs.readFileSync(outFile, 'utf8');
-  expect(content).toContain('url,timestamp,changed,snapshot');
-  fs.unlinkSync(reportFile);
-  fs.unlinkSync(outFile);
+  withTempFiles([reportFile, outFile], () => {
+    runExportCli(['--format', 'csv', '--output', outFile], reportFile);
+    const content = fs.readFileSync(outFile, 'utf8');
+    expect(content).toContain('url,timestamp,changed,snapshot');
+  });
 });
